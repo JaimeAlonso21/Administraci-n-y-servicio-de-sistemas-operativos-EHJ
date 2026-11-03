@@ -1,0 +1,150 @@
+#!/bin/bash
+# PROYECTO AURORA-6 | Script completo con explicación de comandos
+
+# 1. COMPROBACIONES INICIALES E INSTALACIÓN
+
+whoami                 # Muestra el nombre del usuario con el que estás conectado ahora mismo
+hostname               # Muestra el nombre de la máquina o servidor
+pwd                    # Te dice en qué ruta o carpeta exacta te encuentras en este momento
+ls -ld / /home /root   # Lista los detalles de esas carpetas (dueño, permisos). La 'd' muestra la carpeta en sí, no su interior
+
+sudo apt update        # 'sudo' da poder de administrador. 'apt update' actualiza la lista de programas en internet
+sudo apt install acl   # 'apt install' descarga e instala un programa nuevo (paquete acl)
+sudo apt install tree  # Instala el programa tree para dibujar el árbol de carpetas
+
+
+# 2. CREACIÓN Y CORRECCIÓN DE LA ESTRUCTURA DE DIRECTORIOS
+
+# 'mkdir -p' crea carpetas nuevas. La '-p' crea las carpetas intermedias de golpe si no existen
+sudo mkdir -p /srv/aurora/ingenieria/{mecanica,avionica,software}
+sudo mkdir -p /srv/aurora/compras/{proveedores,pedidos}
+sudo mkdir -p /srv/aurora/contabilidad/facturas
+sudo mkdir -p /srv/aurora/documentacion/comun
+
+# 'mv' mueve o renombra archivos y carpetas. Aquí renombramos 'aurora' a 'aurora6'
+sudo mv /srv/aurora /srv/aurora6
+
+sudo mkdir -p /srv/aurora6/confidencial
+sudo mkdir -p /srv/aurora6/intercambio/{incoming,approved,quarantine}
+
+# 'tree -d' dibuja un "árbol" visual con la estructura de las carpetas
+tree -d /srv/aurora6
+
+
+# 3. CREACIÓN DE GRUPOS, USUARIOS Y ASIGNACIÓN DE CONTRASEÑAS
+
+# 'groupadd' crea un grupo nuevo en el sistema
+sudo groupadd mecanica
+sudo groupadd avionica
+sudo groupadd software
+sudo groupadd compras
+sudo groupadd proyecto
+
+# 'useradd' crea un usuario nuevo. '-m' crea su carpeta personal y '-s /bin/bash' le da la terminal por defecto
+sudo useradd -m -s /bin/bash usuario_a
+sudo useradd -m -s /bin/bash usuario_b
+sudo useradd -m -s /bin/bash usuario_c
+
+# 'usermod -aG' añade un usuario que ya existe a un grupo nuevo
+sudo usermod -aG mecanica,proyecto usuario_a
+sudo usermod -aG avionica,software,proyecto usuario_b
+sudo usermod -aG compras,proyecto usuario_c
+
+# 'passwd' le pone o le cambia la contraseña a un usuario (te pedirá escribirla a mano)
+sudo passwd usuario_a
+sudo passwd usuario_b
+sudo passwd usuario_c
+
+# 'id' y 'groups' muestran a qué grupos pertenece un usuario concreto
+id usuario_a
+id usuario_b
+id usuario_c
+groups usuario_c
+
+
+# 4. CONFIGURACIÓN BASE (FASE 4)
+
+# 'chgrp' cambia el grupo dueño de un archivo o carpeta
+sudo chgrp proyecto /srv/aurora6/documentacion
+# 'chmod' cambia los permisos básicos (lectura, escritura y ejecución/paso) usando números
+sudo chmod 751 /srv/aurora6/documentacion
+ls -ld /srv/aurora6/documentacion
+
+
+# 5. POLÍTICAS DE ACCESO POR DEPARTAMENTOS (FASE 5)
+
+# 'chown' cambia el usuario dueño y el grupo dueño a la vez (usuario:grupo)
+sudo chown usuario_a:mecanica /srv/aurora6/ingenieria/mecanica
+sudo chmod 770 /srv/aurora6/ingenieria/mecanica
+# 'setfacl' da permisos especiales (ACL) a un usuario concreto sin meterlo en el grupo dueño
+sudo setfacl -m u:usuario_b:r-x /srv/aurora6/ingenieria/mecanica
+# 'getfacl' te muestra la lista detallada de todos los permisos y ACLs aplicados
+getfacl /srv/aurora6/ingenieria/mecanica
+
+sudo chown root:avionica /srv/aurora6/ingenieria/avionica
+sudo chmod 2770 /srv/aurora6/ingenieria/avionica
+sudo setfacl -m u:usuario_a:r-x /srv/aurora6/ingenieria/avionica
+sudo setfacl -d -m u:usuario_a:r-x /srv/aurora6/ingenieria/avionica
+
+sudo chown root:software /srv/aurora6/ingenieria/software
+sudo chmod 2770 /srv/aurora6/ingenieria/software
+
+# '-R' aplica el cambio a esa carpeta y a todo lo que tenga dentro
+sudo chown -R root:compras /srv/aurora6/compras
+sudo chmod 2770 /srv/aurora6/compras
+sudo chmod 2770 /srv/aurora6/compras/proveedores
+sudo chmod 2770 /srv/aurora6/compras/pedidos
+
+sudo chown root:proyecto /srv/aurora6/documentacion/comun
+sudo chmod 2750 /srv/aurora6/documentacion/comun
+sudo chmod 750 /srv/aurora6/documentacion
+
+sudo chown root:compras /srv/aurora6/contabilidad
+sudo chmod 750 /srv/aurora6/contabilidad
+sudo chown root:root /srv/aurora6/contabilidad/facturas
+sudo chmod 700 /srv/aurora6/contabilidad/facturas
+sudo setfacl -m u:usuario_c:r-x /srv/aurora6/contabilidad/facturas
+sudo setfacl -m u:usuario_c:r-- /srv/aurora6/contabilidad/facturas/factura_prueba.txt
+
+sudo chmod 700 /srv/aurora6/confidencial
+
+
+# 6. PRUEBAS DE VALIDACIÓN (FASE 6)
+
+# PRUEBAS MIEMBRO A
+# 'su -' cierra tu sesión actual y te loguea como otro usuario
+su - usuario_a
+# 'touch' crea un archivo de texto vacío
+touch /srv/aurora6/ingenieria/mecanica/prueba_mecanica.txt
+touch /srv/aurora6/compras/pedidos/malicioso.txt
+# 'cd' sirve para entrar o intentar acceder a una carpeta
+cd /srv/aurora6/confidencial
+getfacl /srv/aurora6/ingenieria/mecanica
+# 'exit' cierra la sesión del usuario actual y te devuelve al anterior
+exit
+
+# PRUEBAS MIEMBRO B
+su - usuario_b
+# 'echo' con '>' mete el texto dentro de un archivo nuevo o lo sobrescribe
+echo "Evidencia..." > /srv/aurora6/ingenieria/avionica/evidencia_b.txt
+# 'cat' muestra todo el texto que hay dentro de un archivo por pantalla
+cat /srv/aurora6/ingenieria/avionica/evidencia_b.txt
+echo "Prueba..." > /srv/aurora6/ingenieria/software/prueba_software_b.txt
+cat /srv/aurora6/ingenieria/software/prueba_software_b.txt
+cat /srv/aurora6/ingenieria/mecanica/informe_mecanica.txt
+touch /srv/aurora6/ingenieria/mecanica/intento_b.txt
+getfacl /srv/aurora6/ingenieria/avionica
+exit
+
+# PRUEBAS MIEMBRO C
+su - usuario_c
+touch /srv/aurora6/compras/prueba_c.txt
+cat /srv/aurora6/documentacion/comun/informacion_comun.txt
+# 'echo' con '>>' añade el texto al final del archivo sin borrar lo que ya había
+echo "Intento..." >> /srv/aurora6/documentacion/comun/informacion_comun.txt
+cat /srv/aurora6/contabilidad/facturas/factura_prueba.txt
+echo "Intento..." >> /srv/aurora6/contabilidad/facturas/factura_prueba.txt
+touch /srv/aurora6/ingenieria/mecanica/no_permitido_c.txt
+cd /srv/aurora6/confidencial
+getfacl /srv/aurora6/contabilidad/facturas
+exit
