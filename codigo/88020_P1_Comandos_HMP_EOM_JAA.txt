@@ -1,0 +1,65 @@
+### COMANDOS UTILIZADOS - PRÁCTICA 1 (UBUNTU SERVER) ###
+
+# --- Comprobaciones básicas del sistema ---
+
+# 1. Comprobación del nombre del host (Hostname)
+# Verifica que el nombre asignado al servidor es correcto.
+hostname
+
+# 2. Comprobación de particiones y sistemas de archivos
+# Muestra un listado de los dispositivos de bloques, sus formatos y puntos de montaje.
+lsblk -f
+
+# 3. Comprobación de la memoria Swap
+# Muestra un resumen del estado del espacio de intercambio activo.
+swapon --show
+
+# 4. Comprobación de la dirección IP
+# Muestra las interfaces de red y las direcciones IP asignadas por DHCP.
+ip -br addr
+
+
+# --- Comprobaciones de conectividad (Red) ---
+
+# 5. Comprobación de conectividad a Internet (Ping a IP)
+# Envía paquetes ICMP a los servidores DNS de Google.
+ping -c 4 8.8.8.8
+
+# 6. Comprobación de resolución de nombres DNS (Ping a Dominio)
+# Comprueba que el servidor resuelve correctamente los dominios.
+ping -c 4 google.com
+
+
+# --- Comprobaciones del servicio OpenSSH ---
+
+# 7. Verificación de instalación del paquete
+# Filtra la lista de paquetes para confirmar que openssh-server está instalado. 
+# (Nota: En la captura se observa un primer intento fallido por escribir un "1" en lugar de una "l" minúscula).
+dpkg -l | grep openssh-server
+
+# 8. Verificación de estado del servicio
+# Comprueba si el demonio SSH está activo (devuelve "active" o "inactive").
+systemctl is-active ssh
+
+# 9. Comprobación detallada del Socket SSH
+# Muestra si el socket está "listening" (escuchando).
+systemctl status ssh.socket
+
+# 10. Comprobación de puertos a la escucha (Sockets)
+# Se utiliza en la consola para comprobar específicamente si el puerto 22 está a la escucha.
+ss -ltn | grep 22
+
+
+# --- Comandos de administración y sugerencias del sistema (MOTD) ---
+
+# 11. Ejecución con privilegios de administrador
+# Se utiliza delante de cualquier comando que requiera permisos de superusuario (ya que no se usa root directamente).
+sudo
+
+# 12. Listar actualizaciones (Sugerido por el sistema al iniciar sesión)
+# El mensaje de bienvenida (MOTD) de Ubuntu sugiere este comando para ver paquetes actualizables.
+apt list --upgradable
+
+# 13. Estado de Ubuntu Pro (Sugerido por el sistema al iniciar sesión)
+# Sugerido por el sistema para recibir actualizaciones de seguridad adicionales.
+sudo pro status
