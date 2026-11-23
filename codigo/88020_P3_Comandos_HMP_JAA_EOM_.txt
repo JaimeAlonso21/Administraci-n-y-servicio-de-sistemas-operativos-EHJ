@@ -1,0 +1,127 @@
+# ==============================================================================
+# PRÁCTICA 3 - ASSIO (AURORA-6) - GUION DE COMANDOS DE REFERENCIA
+# Entorno: Ubuntu Server (server-assio-03) | Roles: A (JAA), B (EOM), C (HMP)
+# ==============================================================================
+
+# --- 1. CONECTIVIDAD Y RED (NAT / SSH) ---
+# Desde el anfitrión Windows (puerto 2222 -> 22):
+# ssh -p 2222 grupo3@127.0.0.1
+# ssh -p 2222 usuario_a@127.0.0.1
+
+# En la VM (comprobación de interfaz, rutas y escucha SSH):
+whoami
+hostname
+ip -brief -4 address
+ip -4 route show default
+ss -ltn '( sport = :22 )'
+echo "$SSH_CONNECTION"
+date -Is
+
+# --- 2. SESIONES INDIVIDUALES Y ARCHIVO DE PRUEBA ---
+# Ejecutar dentro de cada sesión SSH individual (usuario_a / usuario_b / usuario_c):
+whoami
+hostname
+id
+echo "$SSH_CONNECTION"
+ARCHIVO=$(mktemp /home/$USER/p3_ssh_$(date +%Y%m%d)_XXXXXX.txt)
+echo "Prueba P3 desde SSH: $USER" > "$ARCHIVO"
+chmod 600 "$ARCHIVO"
+stat -c '%U:%G %a %n' "$ARCHIVO"
+cat "$ARCHIVO"
+date -Is
+
+# --- 3. GESTIÓN DE SERVICIOS CON SYSTEMCTL ---
+systemctl status ssh.service ssh.socket cron.service --no-pager
+systemctl is-enabled ssh.service ssh.socket cron.service
+
+# Prueba sobre unidad temporal no crítica (ejemplo con usuario_c y retirada final):
+# sudo systemctl daemon-reload
+# sudo systemctl start p3-gestion-prueba.service
+# systemctl is-active p3-gestion-prueba.service
+# sudo systemctl stop p3-gestion-prueba.service
+# systemctl is-active p3-gestion-prueba.service
+# sudo systemctl restart p3-gestion-prueba.service
+# systemctl is-active p3-gestion-prueba.service
+# sudo systemctl enable p3-gestion-prueba.service
+# systemctl is-enabled p3-gestion-prueba.service
+# sudo systemctl disable --now p3-gestion-prueba.service
+# sudo rm -f /etc/systemd/system/p3-gestion-prueba.service
+# sudo systemctl daemon-reload
+
+# --- 4. SERVICIOS INDIVIDUALES SYSTEMD (AURORA-6) ---
+# Instalación de scripts oficiales en /opt/aurora6/tools/ (como root/sudo):
+sudo mkdir -p /opt/aurora6/tools
+sudo install -o root -g root -m 755 structure-monitor.sh /opt/aurora6/tools/structure-monitor.sh
+sudo install -o root -g root -m 755 telemetry-monitor.sh /opt/aurora6/tools/telemetry-monitor.sh
+sudo install -o root -g root -m 755 supply-monitor.sh /opt/aurora6/tools/supply-monitor.sh
+bash -n /opt/aurora6/tools/structure-monitor.sh /opt/aurora6/tools/telemetry-monitor.sh /opt/aurora6/tools/supply-monitor.sh
+sha256sum /opt/aurora6/tools/*.sh
+
+# Creación de unidades en /etc/systemd/system/ (modo 0644, root:root):
+# Ejemplo para Miembro A (structure-monitor.service):
+sudo tee /etc/systemd/system/structure-monitor.service > /dev/null <<'EOF'
+[Unit]
+Description=AURORA-6 structure-monitor A
+After=network.target
+
+[Service]
+Type=simple
+User=usuario_a
+ExecStart=/opt/aurora6/tools/structure-monitor.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo chmod 644 /etc/systemd/system/structure-monitor.service
+
+# Validación, carga y arranque inicial:
+systemd-analyze verify /etc/systemd/system/structure-monitor.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now structure-monitor.service
+systemctl status structure-monitor.service --no-pager
+systemctl is-enabled structure-monitor.service
+
+# --- 5. ENDURECIMIENTO (SANDBOX) Y MÍNIMO PRIVILEGIO ---
+# Comprobación de ruta, permisos y ausencia de sudo desde cuenta de rol (ej. usuario_a):
+namei -l /opt/aurora6/tools/structure-monitor.sh
+stat -c '%U:%G %a %n' /opt/aurora6/tools/structure-monitor.sh /etc/systemd/system/structure-monitor.service
+test -w /opt/aurora6/tools/structure-monitor.sh || echo "OK: sin escritura"
+sudo -l
+
+# Añadir directivas de aislamiento en [Service] de cada unidad:
+# NoNewPrivileges=true
+# PrivateTmp=true
+# ProtectHome=true
+# ProtectSystem=full
+
+sudo systemctl daemon-reload
+sudo systemctl restart structure-monitor.service
+systemctl is-active structure-monitor.service
+systemctl show structure-monitor.service -p User -p NoNewPrivileges -p PrivateTmp -p ProtectHome -p ProtectSystem
+sudo journalctl -u structure-monitor.service -n 5 --no-pager -o cat
+
+# --- 6. RECUPERACIÓN ANTE FALLO (SIGKILL) ---
+# Estado previo:
+systemctl is-active structure-monitor.service
+systemctl show structure-monitor.service -p User -p MainPID -p NRestarts -p Restart -p ActiveState
+
+# Provocar caída del proceso principal y comprobar recuperación tras 5s:
+sudo systemctl kill --kill-who=main --signal=SIGKILL structure-monitor.service
+sleep 5
+systemctl is-active structure-monitor.service
+systemctl show structure-monitor.service -p User -p MainPID -p NRestarts -p ActiveState
+
+# --- 7. REGISTROS DEL SERVICIO Y SSH (JOURNALCTL) ---
+sudo journalctl -u structure-monitor.service -n 15 --no-pager -o short-iso
+sudo journalctl -u ssh -n 10 --no-pager -o short-iso
+
+# --- 8. MEDIDA BÁSICA DE SEGURIDAD EN SSH ---
+# Asegurar PermitRootLogin no (p. ej. en /etc/ssh/sshd_config.d/00-assio-p3.conf o /etc/ssh/sshd_config):
+echo "PermitRootLogin no" | sudo tee /etc/ssh/sshd_config.d/00-assio-p3.conf > /dev/null
+sudo /usr/sbin/sshd -t
+sudo systemctl reload ssh
+sudo /usr/sbin/sshd -T -C user=root,host=localhost,addr=127.0.0.1 | grep -i permitrootlogin
+sudo /usr/sbin/sshd -T -C user=root,host=localhost,addr=10.0.2.2 | grep -i permitrootlogin
+systemctl is-active ssh.service ssh.socket
